@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 # coding=utf-8
+import time
 import rclpy
 from rclpy.node import Node
 from sensor_msgs.msg import Image, CameraInfo
@@ -45,13 +46,14 @@ class UndistortedImageNode(Node):
         # self.new_camera_matrix, _ = cv2.getOptimalNewCameraMatrix(
         #     self.camera_matrix, self.distortion_coefficients,
         #     (msg.width, msg.height), 1, (msg.width, msg.height))
-        self.p =  msg.p
         self.frame = msg.header.frame_id
+        self.p = msg.p
 
     def image_callback(self, msg):
         if self.camera_matrix is None or self.distortion_coefficients is None:
             return
 
+        # start_time = time.time()
         cv_image = self.cv_bridge.imgmsg_to_cv2(msg, 'bgr8')
         undistorted_image = cv2.undistort(
             cv_image, self.camera_matrix, self.distortion_coefficients)
@@ -63,15 +65,23 @@ class UndistortedImageNode(Node):
         undistorted_msg.header.stamp = self.get_clock().now().to_msg()
         self.undistorted_image_publisher.publish(undistorted_msg)
 
+        k = self.camera_matrix.flatten().tolist()
+        self.p[0] =  k[0]
+        self.p[2] =  k[2]
+        self.p[5] =  k[4]
+        self.p[6] =  k[5]
         # 更新相机信息的内参矩阵和畸变系数
         undistorted_camera_info = CameraInfo()
-        undistorted_camera_info.header = msg.header
+        undistorted_camera_info.header.frame_id = msg.header.frame_id
+        undistorted_camera_info.header.stamp = undistorted_msg.header.stamp
         undistorted_camera_info.height = undistorted_image.shape[0]
         undistorted_camera_info.width = undistorted_image.shape[1]
-        undistorted_camera_info.k = self.camera_matrix.ravel().tolist()
+        undistorted_camera_info.k =  k
         undistorted_camera_info.d = [0.0, 0.0, 0.0, 0.0, 0.0]
         undistorted_camera_info.p = self.p # 假设不进行投影变换
         undistorted_camera_info.distortion_model = 'plumb_bob'
+        
+        # print(f'tomeout=={start_time - time.time()}')
 
         self.undistorted_image_publisher.publish(undistorted_msg)
         self.undistorted_camera_info_publisher.publish(undistorted_camera_info)
