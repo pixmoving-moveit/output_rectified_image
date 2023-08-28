@@ -1,6 +1,6 @@
 from setuptools import setup
 
-package_name = 'output_rectified_image'
+package_name = 'output_rectified_image_py'
 
 setup(
     name=package_name,
@@ -21,7 +21,7 @@ setup(
     license='TODO: License declaration',
     tests_require=['pytest'],
     entry_points={
-        'console_scripts': ['output_rectified_image_node = output_rectified_image.undistorted_image_node:main'
+        'console_scripts': ['output_rectified_image_py_node = output_rectified_image_py.undistorted_image_node:main'
         ],
     },
 )

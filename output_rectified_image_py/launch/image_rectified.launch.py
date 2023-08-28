@@ -7,9 +7,9 @@ from launch_ros.actions import Node
 
 def generate_launch_description():
     node = Node(
-      package='output_rectified_image',
-      executable='output_rectified_image_node',
-      name='output_rectified_image_node',
+      package='output_rectified_image_py',
+      executable='output_rectified_image_py_node',
+      name='output_rectified_image_py_node',
       remappings=[
         ('input_image_raw', '/image_raw'),
         ('input_camera_info', '/camera_info'),
