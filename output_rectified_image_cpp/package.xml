@@ -10,7 +10,6 @@
   <buildtool_depend>ament_cmake_auto</buildtool_depend>
 
   <depend>rclcpp</depend>
-  <depend>opencv2</depend>
   <depend>cv_bridge</depend>
   <depend>sensor_msgs</depend>
 
