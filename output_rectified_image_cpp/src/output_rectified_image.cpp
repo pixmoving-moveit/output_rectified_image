@@ -25,7 +25,6 @@ void OutputRectifiedImage::cameraInfoCallback(const sensor_msgs::msg::CameraInfo
   distortion_coefficients_ = cv::Mat(1, msg->d.size(), CV_64F, const_cast<double *>(msg->d.data()));
 
   original_camera_info_ = *msg;
-
 }
 
 void OutputRectifiedImage::imageCallback(const sensor_msgs::msg::Image::SharedPtr msg)
@@ -33,20 +32,11 @@ void OutputRectifiedImage::imageCallback(const sensor_msgs::msg::Image::SharedPt
   auto start_time = std::chrono::high_resolution_clock::now();
 
   // 将ROS图像消息转换为OpenCV格式
-  cv_bridge::CvImagePtr cv_ptr;
-  try
-  {
-    cv_ptr = cv_bridge::toCvCopy(msg, sensor_msgs::image_encodings::BGR8);
-  }
-  catch (cv_bridge::Exception &e)
-  {
-    RCLCPP_ERROR(this->get_logger(), "cv_bridge exception: %s", e.what());
-    return;
-  }
-
+  const cv::Mat image_raw = cv_bridge::toCvCopy(msg, sensor_msgs::image_encodings::BGR8)->image;
+  
   // 进行去畸变操作
   cv::Mat rectified_image;
-  cv::undistort(cv_ptr->image, rectified_image, camera_matrix_, distortion_coefficients_);
+  cv::undistort(image_raw, rectified_image, camera_matrix_, distortion_coefficients_);
 
   // 将OpenCV格式的图像转换为ROS消息
   sensor_msgs::msg::Image::SharedPtr rectified_msg = cv_bridge::CvImage(std_msgs::msg::Header(), "bgr8", rectified_image).toImageMsg();
