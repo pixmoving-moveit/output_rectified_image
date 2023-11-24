@@ -3,7 +3,9 @@
 #include <iostream>
 #include <chrono>
 
-OutputRectifiedImage::OutputRectifiedImage(/* args */) : Node("output_rectified_image_cpp_node")
+OutputRectifiedImage::OutputRectifiedImage(/* args */) : Node("output_rectified_image_cpp_node"),
+m_rect_image_msg(new sensor_msgs::msg::Image()),
+m_rect_camera_info_msg(new sensor_msgs::msg::CameraInfo())
 {
   // 订阅原始图像和相机信息的话题
   image_subscriber_ = this->create_subscription<sensor_msgs::msg::Image>(
@@ -18,47 +20,59 @@ OutputRectifiedImage::OutputRectifiedImage(/* args */) : Node("output_rectified_
 
 }
 
+OutputRectifiedImage::~OutputRectifiedImage(/* args */)
+{
+  m_rect_camera_info_msg.reset();
+}
+
 void OutputRectifiedImage::cameraInfoCallback(const sensor_msgs::msg::CameraInfo::SharedPtr msg)
 {
-  // 保存相机矩阵和畸变系数
-  camera_matrix_ = cv::Mat(3, 3, CV_64F, const_cast<double *>(msg->k.data()));
-  distortion_coefficients_ = cv::Mat(1, msg->d.size(), CV_64F, const_cast<double *>(msg->d.data()));
-
   original_camera_info_ = *msg;
 }
 
 void OutputRectifiedImage::imageCallback(const sensor_msgs::msg::Image::SharedPtr msg)
 {
-  auto start_time = std::chrono::high_resolution_clock::now();
-
   // 将ROS图像消息转换为OpenCV格式
-  const cv::Mat image_raw = cv_bridge::toCvCopy(msg, sensor_msgs::image_encodings::BGR8)->image;
+  image_raw_ = cv_bridge::toCvCopy(msg, sensor_msgs::image_encodings::BGR8)->image;
   
-  // 进行去畸变操作
-  cv::Mat rectified_image;
-  cv::undistort(image_raw, rectified_image, camera_matrix_, distortion_coefficients_);
+  {
+    // 获取内参和畸变
+    if(is_get_camera_info_){
+      cv::Mat camera_matrix;
+      cv::Mat distortion_coefficients;
 
+      camera_matrix = cv::Mat(3, 3, CV_64F, const_cast<double *>(original_camera_info_.k.data()));
+      distortion_coefficients = cv::Mat(1, original_camera_info_.d.size(), CV_64F, const_cast<double *>(original_camera_info_.d.data()));
+
+      cv::Size size(original_camera_info_.width, original_camera_info_.height);
+      cv::Size resize(original_camera_info_.width/image_resize_, original_camera_info_.height/image_resize_);
+
+      cv::Mat new_K = cv::getOptimalNewCameraMatrix(camera_matrix, distortion_coefficients, size, 0, resize);
+
+      cv::initUndistortRectifyMap(
+        camera_matrix, distortion_coefficients, cv::Mat(), 
+        new_K, resize, CV_32FC1, undistort_map_x_, undistort_map_y_);
+
+      *m_rect_camera_info_msg = original_camera_info_;
+      m_rect_camera_info_msg->d.resize(5); 
+      std::array<double, 12UL> p = m_rect_camera_info_msg->p;
+      p[0] =  m_rect_camera_info_msg->k[0];
+      p[2] =  m_rect_camera_info_msg->k[2];
+      p[5] =  m_rect_camera_info_msg->k[4];
+      p[6] =  m_rect_camera_info_msg->k[5];
+      m_rect_camera_info_msg->p = p;
+      
+      is_get_camera_info_ = false;
+    }
+
+    cv::remap(image_raw_, image_rect_, undistort_map_x_, undistort_map_y_, cv::INTER_LINEAR);
+  }
+  
   // 将OpenCV格式的图像转换为ROS消息
-  sensor_msgs::msg::Image::SharedPtr rectified_msg = cv_bridge::CvImage(std_msgs::msg::Header(), "bgr8", rectified_image).toImageMsg();
-  rectified_msg->header = msg->header;
-  auto image_ptr = std::make_unique<sensor_msgs::msg::Image>(*rectified_msg);
+  m_rect_image_msg = cv_bridge::CvImage(std_msgs::msg::Header(), msg->encoding, image_rect_).toImageMsg();
+  m_rect_image_msg->header = msg->header;
+  m_rect_camera_info_msg->header = msg->header;
   // 发布去畸变图像
-  rectified_image_publisher_->publish(std::move(image_ptr));
-
-
-  original_camera_info_.header = msg->header;
-  original_camera_info_.d = std::vector<double>{0.0, 0.0, 0.0, 0.0, 0.0};
-  std::array<double, 12UL> p = original_camera_info_.p;
-  p[0] =  original_camera_info_.k[0];
-  p[2] =  original_camera_info_.k[2];
-  p[5] =  original_camera_info_.k[4];
-  p[6] =  original_camera_info_.k[5];
-  original_camera_info_.p = p;
-  // 发布去畸变相机信息
-  rectified_camera_info_publisher_->publish(original_camera_info_);
-
-  auto end_time = std::chrono::high_resolution_clock::now();
-  auto duration = std::chrono::duration_cast<std::chrono::milliseconds>(end_time - start_time);
-  std::cout << "程序运行时间: " << duration.count() << " 毫秒" << std::endl;
-
+  rectified_image_publisher_->publish(*m_rect_image_msg);
+  rectified_camera_info_publisher_->publish(*m_rect_camera_info_msg);
 }
