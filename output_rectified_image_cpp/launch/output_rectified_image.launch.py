@@ -11,10 +11,10 @@ def generate_launch_description():
       executable='output_rectified_image_cpp_node',
       name='output_rectified_image_cpp_node',
       remappings=[
-        ('image_raw', '/image_raw'),
-        ('camera_info', '/camera_info'),
+        ('image_raw', '/front/gmsl/image_raw'),
+        ('camera_info', '/front/gmsl/camera_info'),
 
-        ('rectified/image_raw', '/sensing/camera/traffic_light/rectified/image_raw'),
-        ('rectified/camera_info', '/sensing/camera/traffic_light/rectified/camera_info')],
+        ('rectified/image_raw', '/front/gmsl/rectified/image_raw'),
+        ('rectified/camera_info', '/front/gmsl/rectified/camera_info')],
       output='screen')
     return LaunchDescription([node])

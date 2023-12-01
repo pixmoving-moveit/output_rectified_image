@@ -37,7 +37,6 @@ private:
 
   cv::Mat camera_matrix_;
   cv::Mat distortion_coefficients_;
-  sensor_msgs::msg::CameraInfo original_camera_info_;
 };
 
 #endif // output_rectified_image_cpp_HPP_
